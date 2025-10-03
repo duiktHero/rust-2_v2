@@ -1,8 +1,3 @@
-
-// Part 1: Type-state pattern for Post lifecycle
-// States: New -> Unmoderated -> Published
-// Invalid transitions are impossible at compile time.
-
 use std::fmt;
 
 #[derive(Debug, Clone)]

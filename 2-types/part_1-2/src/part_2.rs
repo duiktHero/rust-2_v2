@@ -1,49 +1,83 @@
+use std::fs::File;
+use std::io::BufReader;
+use std::path::Path;
 
-// Part 2: Safer time handling with Option<Result> and pattern matching.
-// We model a device with optional local_time parsed from string.
-// We expose a method to render local_time, or return a descriptive error.
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone)]
-pub struct Device {
-    pub id: String,
-    pub local_time: Option<String>,
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Request {
+    pub r#type: String,
+    pub stream: Stream,
+    pub gifts: Vec<Gift>,
+    pub debug: DebugInfo,
 }
 
-#[derive(Debug, thiserror::Error)]
-pub enum TimeError {
-    #[error("local time is missing")]
-    Missing,
-    #[error("invalid local time format: {0}")]
-    Invalid(String),
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Stream {
+    pub user_id: String,
+    pub is_private: bool,
+    pub settings: i64,
+    pub shard_url: String,
+    pub public_tariff: Tariff,
+    pub private_tariff: Tariff,
 }
 
-impl Device {
-    pub fn parsed_local_time_minutes(&self) -> Result<i64, TimeError> {
-        let Some(ref s) = self.local_time else { return Err(TimeError::Missing) };
-        let parts: Vec<&str> = s.split(|c| c==' ' || c==':' || c=='-').collect();
-        if parts.len() < 5 { return Err(TimeError::Invalid(s.clone())); }
-        let hh = parts[3].parse::<i64>().map_err(|_| TimeError::Invalid(s.clone()))?;
-        let mm = parts[4].parse::<i64>().map_err(|_| TimeError::Invalid(s.clone()))?;
-        Ok(hh*60 + mm)
-    }
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Tariff {
+    pub id: Option<i64>,           
+    pub client_price: Option<i64>, 
+    pub price: Option<i64>,
+    pub duration: String,
+    pub description: String,
 }
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Gift {
+    pub id: i64,
+    pub price: i64,
+    pub description: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DebugInfo {
+    pub duration: String,
+    pub at: String,
+}
+
+pub const REQUEST_JSON_PATH: &str = "../../request.json";
+
+pub fn load_request_at(path: &Path) -> Result<Request, Box<dyn std::error::Error>> {
+    let file = File::open(path)?;
+    let reader = BufReader::new(file);
+    let req: Request = serde_json::from_reader(reader)?;
+    Ok(req)
+}
+
+
+pub fn load_request() -> Result<Request, Box<dyn std::error::Error>> {
+    load_request_at(Path::new(REQUEST_JSON_PATH))
+}
+
+pub fn to_toml(request: &Request) -> Result<String, Box<dyn std::error::Error>> {
+    Ok(toml::to_string_pretty(request)?)
+}
+
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
     #[test]
-    fn ok_parse() {
-        let d = Device { id: "A".into(), local_time: Some("2025-09-30 21:45".into()) };
-        assert_eq!(d.parsed_local_time_minutes().unwrap(), 21*60+45);
-    }
-    #[test]
-    fn missing() {
-        let d = Device { id: "B".into(), local_time: None };
-        assert!(matches!(d.parsed_local_time_minutes(), Err(TimeError::Missing)));
-    }
-    #[test]
-    fn invalid() {
-        let d = Device { id: "C".into(), local_time: Some("oops".into()) };
-        assert!(matches!(d.parsed_local_time_minutes(), Err(TimeError::Invalid(_))));
+    fn parse_and_print_toml() {
+        let req = load_request().unwrap();
+        assert_eq!(req.stream.public_tariff.duration, "1h");
+        assert_eq!(req.stream.private_tariff.duration, "1m");
+
+        let toml_text = to_toml(&req).unwrap();
+        assert!(toml_text.contains("[stream.public_tariff]"));
+        assert!(toml_text.contains("duration = \"1h\""));
+        assert!(toml_text.contains("[stream.private_tariff]"));
+        assert!(toml_text.contains("duration = \"1m\""));
     }
 }
