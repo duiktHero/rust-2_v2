@@ -4,10 +4,17 @@ use std::path::Path;
 
 use serde::{Deserialize, Serialize};
 
+#[derive(Serialize, Deserialize, Debug, PartialEq)]
+#[serde(rename_all = "lowercase")]
+enum RequestType {
+    Success,
+    Fail,
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Request {
-    pub r#type: String,
+    #[serde(rename = "type")]
+    pub request_type: RequestType,
     pub stream: Stream,
     pub gifts: Vec<Gift>,
     pub debug: DebugInfo,
@@ -15,10 +22,10 @@ pub struct Request {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Stream {
-    pub user_id: String,
+    pub user_id: uuid::Uuid,
     pub is_private: bool,
     pub settings: i64,
-    pub shard_url: String,
+    pub shard_url: url::Url,
     pub public_tariff: Tariff,
     pub private_tariff: Tariff,
 }
@@ -28,7 +35,8 @@ pub struct Tariff {
     pub id: Option<i64>,           
     pub client_price: Option<i64>, 
     pub price: Option<i64>,
-    pub duration: String,
+    #[serde(with = "humantime_serde")]
+    pub duration: std::time::Duration,  
     pub description: String,
 }
 
@@ -41,8 +49,10 @@ pub struct Gift {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DebugInfo {
-    pub duration: String,
-    pub at: String,
+    #[serde(with = "humantime_serde")]
+    pub duration: std::time::Duration,  
+    #[serde(with = "time::serde::rfc3339")]
+    pub at: time::OffsetDateTime,      
 }
 
 pub const REQUEST_JSON_PATH: &str = "../../request.json";

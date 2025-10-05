@@ -25,15 +25,14 @@ impl Store {
         }
         let file = File::open(STORE_FILE)?;
         let reader = BufReader::new(file);
-        let snippets: Vec<Snippet> = serde_json::from_reader(reader).unwrap_or_default();
+        let snippets: Vec<Snippet> = serde_json::from_reader(reader)?;
         Ok(Self { snippets })
     }
 
     fn save_store(&self) -> std::io::Result<()> {
         let file = File::create(STORE_FILE)?;
         let writer = BufWriter::new(file);
-        serde_json::to_writer_pretty(writer, &self.snippets)
-            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))
+        serde_json::to_writer_pretty(writer, &self.snippets)?
     }
 }
 
