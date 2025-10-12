@@ -1,0 +1,7 @@
+[
+  {
+    "name": "hello",
+    "lang": "rust",
+    "code": "fn main() { println!(\"hi\"); }"
+  }
+]
