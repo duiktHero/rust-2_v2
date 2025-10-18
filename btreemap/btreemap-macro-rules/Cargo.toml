@@ -1,0 +1,8 @@
+[package]
+name = "btreemap-macro-rules"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "Declarative macro_rules! btreemap! implementation"
+
+[dependencies]

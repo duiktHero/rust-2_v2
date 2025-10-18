@@ -1,0 +1,7 @@
+[workspace]
+members = [
+  "btreemap-macro-rules",
+  "btreemap-proc",
+  "demo-tests",
+]
+resolver = "2"
