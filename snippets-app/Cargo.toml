@@ -24,3 +24,14 @@ serde_json = "1.0"
 httptest = "0.15"
 wait-timeout = "0.2"
 serial_test = "2.0"
+
+[lints.rust]
+missing_docs = "deny"
+broken_intra_doc_links = "deny"
+missing_crate_level_docs = "deny"
+unreachable_pub = "deny"
+
+[lints.clippy]
+missing_panics_doc = "deny"
+clone_on_ref_ptr = "deny"
+similar_names = "deny"
