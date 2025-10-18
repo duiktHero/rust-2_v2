@@ -1,9 +1,11 @@
-use std::fs::File;
-use std::io::BufReader;
-use std::path::Path;
-
 use serde::{Deserialize, Serialize};
+use std::{fs, path::Path};
 
+
+
+use uuid;
+use url;
+use time;
 #[derive(Serialize, Deserialize, Debug, PartialEq)]
 #[serde(rename_all = "lowercase")]
 enum RequestType {
@@ -11,7 +13,7 @@ enum RequestType {
     Fail,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub struct Request {
     #[serde(rename = "type")]
     pub request_type: RequestType,
@@ -20,74 +22,73 @@ pub struct Request {
     pub debug: DebugInfo,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub struct Stream {
     pub user_id: uuid::Uuid,
     pub is_private: bool,
     pub settings: i64,
     pub shard_url: url::Url,
-    pub public_tariff: Tariff,
-    pub private_tariff: Tariff,
+    pub public_tariff: PublicTariff,
+    pub private_tariff: PrivateTariff,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Tariff {
-    pub id: Option<i64>,           
-    pub client_price: Option<i64>, 
-    pub price: Option<i64>,
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
+pub struct PublicTariff {
+    pub id: i64,
+    pub price: i64,
     #[serde(with = "humantime_serde")]
-    pub duration: std::time::Duration,  
+    pub duration: std::time::Duration,      
     pub description: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
+pub struct PrivateTariff {
+    pub client_price: i64,
+    #[serde(with = "humantime_serde")]
+    pub duration: std::time::Duration,      
+    pub description: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub struct Gift {
     pub id: i64,
     pub price: i64,
     pub description: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub struct DebugInfo {
     #[serde(with = "humantime_serde")]
-    pub duration: std::time::Duration,  
+    pub duration: std::time::Duration,      
     #[serde(with = "time::serde::rfc3339")]
     pub at: time::OffsetDateTime,      
 }
 
-pub const REQUEST_JSON_PATH: &str = "../../request.json";
-
-pub fn load_request_at(path: &Path) -> Result<Request, Box<dyn std::error::Error>> {
-    let file = File::open(path)?;
-    let reader = BufReader::new(file);
-    let req: Request = serde_json::from_reader(reader)?;
-    Ok(req)
+pub fn json_to_toml(json_str: &str) -> Result<String, Box<dyn std::error::Error>> {
+    let req: Request = serde_json::from_str(json_str)?;
+    let toml = toml::to_string_pretty(&req)?;
+    Ok(toml)
 }
-
-
-pub fn load_request() -> Result<Request, Box<dyn std::error::Error>> {
-    load_request_at(Path::new(REQUEST_JSON_PATH))
-}
-
-pub fn to_toml(request: &Request) -> Result<String, Box<dyn std::error::Error>> {
-    Ok(toml::to_string_pretty(request)?)
-}
-
 
 #[cfg(test)]
 mod tests {
     use super::*;
-
+    use std::fs;
+    use std::path::Path;
     #[test]
     fn parse_and_print_toml() {
-        let req = load_request().unwrap();
-        assert_eq!(req.stream.public_tariff.duration, "1h");
-        assert_eq!(req.stream.private_tariff.duration, "1m");
-
-        let toml_text = to_toml(&req).unwrap();
-        assert!(toml_text.contains("[stream.public_tariff]"));
-        assert!(toml_text.contains("duration = \"1h\""));
-        assert!(toml_text.contains("[stream.private_tariff]"));
-        assert!(toml_text.contains("duration = \"1m\""));
+        let here = Path::new(file!()).parent().unwrap();
+        let json_path = here.join("request.json");
+        let json = fs::read_to_string(json_path).expect("request.json");
+        let toml = json_to_toml(&json).expect("to toml");
+        assert!(toml.contains("type = \"success\""));
+        assert!(toml.contains("shard_url = \"https://n3.example.com/sapi\""));
+        assert!(toml.contains("[stream.public_tariff]"));
+        let back: Request = toml::from_str(&toml).expect("from toml");
+        assert_eq!(back.stream.is_private, false);
+        assert_eq!(back.gifts.len(), 2);
+        assert_eq!(
+            back.stream.public_tariff.duration, std::time::Duration::from_secs(3600)
+        );
     }
 }

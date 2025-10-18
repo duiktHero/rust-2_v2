@@ -1,11 +1,10 @@
-
 mod part_1;
 mod part_2;
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let part1 = part_1::demo_transitions();
-    let req = part_2::load_request()?;
-    let toml = part_2::to_toml(&req)?;
+use std::fs;
+
+fn main() {
+    let js = fs::read_to_string("./request.json").expect("request.json");
+    let toml = part_2::json_to_toml(&js).expect("json->toml");
     println!("{toml}");
-    Ok(())
 }
