@@ -1,7 +1,14 @@
 [
   {
-    "code": "fn main(){println!(\\",
+    "name": "hello",
     "lang": "rust",
-    "name": "Cool Rust pattern"
+    "code": "fn main() { println!(\"hi\"); }",
+    "created_at": "2025-10-12T15:44:13.228214300Z"
+  },
+  {
+    "name": "minimalistic_tracing_logger",
+    "lang": "text",
+    "code": "fn init_logger() {\n    use std::io;\n\n    use tracing_subscriber::prelude::*;\n    use tracing_subscriber::EnvFilter;\n\n    let logging_filter: EnvFilter = EnvFilter::builder()\n        .with_default_directive(\"trace\".parse().unwrap())\n        .from_env_lossy();\n\n    let stdout_layer = tracing_subscriber::fmt::layer().pretty().with_writer(io::stdout);\n    \n    tracing_subscriber::registry()\n        .with(stdout_layer)\n        .with(logging_filter).init();\n}",
+    "created_at": "2025-10-18T12:20:34.713972600Z"
   }
 ]

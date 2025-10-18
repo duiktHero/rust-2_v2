@@ -1,11 +1,10 @@
 use std::borrow::Cow;
-use std::cell::Cell;
 use std::collections::HashMap;
 use std::hash::Hash;
 
-// ───────────────────────────────────────────────────────────────
-// ДАНО (не змінювати)
-// ───────────────────────────────────────────────────────────────
+// ──────────────────────────────────────────────────────────────────────────────
+// Given abstractions (DO NOT MODIFY)
+// ──────────────────────────────────────────────────────────────────────────────
 
 trait Storage<K, V> {
     fn set(&mut self, key: K, val: V);
@@ -20,9 +19,9 @@ struct User {
     activated: bool,
 }
 
-// ───────────────────────────────────────────────────────────────
-// БАЗОВЕ СХОВИЩЕ: HashMapStorage<K, V>
-// ───────────────────────────────────────────────────────────────
+// ──────────────────────────────────────────────────────────────────────────────
+// HashMap-based Storage
+// ──────────────────────────────────────────────────────────────────────────────
 
 #[derive(Debug, Default)]
 struct HashMapStorage<K, V>(HashMap<K, V>);
@@ -50,9 +49,9 @@ where
     }
 }
 
-// ───────────────────────────────────────────────────────────────
-// РЕПОЗИТОРІЙ: статична ін’єкція (generics / static dispatch)
-// ───────────────────────────────────────────────────────────────
+// ──────────────────────────────────────────────────────────────────────────────
+// UserRepository (STATIC dispatch via generics)
+// ──────────────────────────────────────────────────────────────────────────────
 
 struct UserRepositoryStatic<S>
 where
@@ -73,7 +72,6 @@ where
         self.storage.get(&id)
     }
 
-    /// Додає користувача. false → якщо id вже існує.
     fn add(&mut self, user: User) -> bool {
         if self.storage.get(&user.id).is_some() {
             return false;
@@ -82,7 +80,6 @@ where
         true
     }
 
-    /// Оновлює існуючого користувача. false → якщо не існує.
     fn update(&mut self, user: User) -> bool {
         if self.storage.get(&user.id).is_none() {
             return false;
@@ -96,9 +93,9 @@ where
     }
 }
 
-// ───────────────────────────────────────────────────────────────
-// РЕПОЗИТОРІЙ: динамічна ін’єкція (trait objects / dynamic dispatch)
-// ───────────────────────────────────────────────────────────────
+// ──────────────────────────────────────────────────────────────────────────────
+// UserRepository (DYNAMIC dispatch via trait object)
+// ──────────────────────────────────────────────────────────────────────────────
 
 struct UserRepositoryDynamic {
     storage: Box<dyn Storage<u64, User>>,
@@ -134,9 +131,9 @@ impl UserRepositoryDynamic {
     }
 }
 
-// ───────────────────────────────────────────────────────────────
-// Демонстрація (робить бінарник корисним при `cargo run`)
-// ───────────────────────────────────────────────────────────────
+// ──────────────────────────────────────────────────────────────────────────────
+// Demo main
+// ──────────────────────────────────────────────────────────────────────────────
 
 fn main() {
     let mut repo = UserRepositoryStatic::new(HashMapStorage::<u64, User>::new());
@@ -150,15 +147,15 @@ fn main() {
     }
 }
 
-// ───────────────────────────────────────────────────────────────
-// ТЕСТИ: коректність та “інжектованість”
-// ───────────────────────────────────────────────────────────────
+// ──────────────────────────────────────────────────────────────────────────────
+// Tests
+// ──────────────────────────────────────────────────────────────────────────────
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    fn u(id: u64, email: &'static str, activated: bool) -> User {
+    fn mk_user(id: u64, email: &'static str, activated: bool) -> User {
         User {
             id,
             email: Cow::Borrowed(email),
@@ -167,134 +164,123 @@ mod tests {
     }
 
     #[test]
-    fn static_repo_crud() {
+    fn static_repo_add_get_update_remove() {
         let mut repo = UserRepositoryStatic::new(HashMapStorage::<u64, User>::new());
 
-        // add
-        assert!(repo.add(u(10, "a@ex", false)));
-        assert!(!repo.add(u(10, "dup@ex", true))); // duplicate
+        assert!(repo.add(mk_user(1, "a@ex", false)));
+        assert!(!repo.add(mk_user(1, "dup@ex", true)));
 
-        // get
-        let got = repo.get(10).unwrap();
-        assert_eq!(got.email, "a@ex");
-        assert!(!got.activated);
+        let u = repo.get(1).expect("user should exist");
+        assert_eq!(u.email, "a@ex");
+        assert!(!u.activated);
 
-        // update existing
-        assert!(repo.update(u(10, "new@ex", true)));
-        let got = repo.get(10).unwrap();
-        assert_eq!(got.email, "new@ex");
-        assert!(got.activated);
+        assert!(repo.update(mk_user(1, "new@ex", true)));
+        let u = repo.get(1).unwrap();
+        assert_eq!(u.email, "new@ex");
+        assert!(u.activated);
 
-        // update missing
-        assert!(!repo.update(u(11, "nope@ex", false)));
+        assert!(!repo.update(mk_user(2, "nope@ex", false)));
 
-        // remove
-        let removed = repo.remove(10).unwrap();
+        let removed = repo.remove(1).expect("remove should return user");
         assert_eq!(removed.email, "new@ex");
-        assert!(repo.get(10).is_none());
+        assert!(repo.get(1).is_none());
     }
 
     #[test]
-    fn dynamic_repo_crud() {
+    fn dynamic_repo_add_get_update_remove() {
         let storage: Box<dyn Storage<u64, User>> = Box::new(HashMapStorage::<u64, User>::new());
         let mut repo = UserRepositoryDynamic::new(storage);
 
-        assert!(repo.add(u(42, "x@ex", true)));
+        assert!(repo.add(mk_user(42, "x@ex", true)));
         assert!(repo.get(42).is_some());
 
-        assert!(repo.update(u(42, "y@ex", false)));
-        let got = repo.get(42).unwrap();
-        assert_eq!(got.email, "y@ex");
-        assert!(!got.activated);
+        assert!(repo.update(mk_user(42, "y@ex", false)));
+        assert_eq!(repo.get(42).unwrap().email, "y@ex");
+        assert!(!repo.get(42).unwrap().activated);
 
         let removed = repo.remove(42).unwrap();
         assert_eq!(removed.id, 42);
         assert!(repo.get(42).is_none());
     }
 
-    // ── Інжектованість: враппер-лічильник навколо будь-якого Storage ──
-    struct CountingStorage<S> {
-        inner: S,
-        get_count: Cell<usize>,
-        set_count: usize,
-        remove_count: usize,
+    // ── Injectable proof: custom storage with counters ──
+    struct TracingStorage {
+        inner: HashMapStorage<u64, User>,
+        sets: usize,
+        removes: usize,
     }
 
-    impl<S> CountingStorage<S> {
-        fn new(inner: S) -> Self {
+    impl Default for TracingStorage {
+        fn default() -> Self {
             Self {
-                inner,
-                get_count: Cell::new(0),
-                set_count: 0,
-                remove_count: 0,
+                inner: HashMapStorage::new(),
+                sets: 0,
+                removes: 0,
             }
         }
-        fn gets(&self) -> usize { self.get_count.get() }
-        fn sets(&self) -> usize { self.set_count }
-        fn removes(&self) -> usize { self.remove_count }
     }
 
-    impl<K, V, S> Storage<K, V> for CountingStorage<S>
-    where
-        S: Storage<K, V>,
-    {
-        fn set(&mut self, key: K, val: V) {
-            self.set_count += 1;
+    impl Storage<u64, User> for TracingStorage {
+        fn set(&mut self, key: u64, val: User) {
+            self.sets += 1;
             self.inner.set(key, val);
         }
-        fn get(&self, key: &K) -> Option<&V> {
-            self.get_count.set(self.get_count.get() + 1);
+        fn get(&self, key: &u64) -> Option<&User> {
             self.inner.get(key)
         }
-        fn remove(&mut self, key: &K) -> Option<V> {
-            self.remove_count += 1;
+        fn remove(&mut self, key: &u64) -> Option<User> {
+            self.removes += 1;
             self.inner.remove(key)
         }
     }
 
-    #[test]
-    fn static_repo_is_injectable() {
-        let inner = HashMapStorage::<u64, User>::new();
-        let counting = CountingStorage::new(inner);
-        let mut repo = UserRepositoryStatic::new(counting);
+    // Рахуємо get виклики через thread_local, не змінюючи сигнатуру трейт-методу (&self)
+    struct TracingStorageWithGetCount(TracingStorage);
 
-        assert!(repo.add(u(7, "t@ex", true)));       // set + get(pre-check)
-        let _ = repo.get(7);                         // get
-        assert!(repo.update(u(7, "t2@ex", true)));   // get(pre-check) + set
-        let _ = repo.remove(7);                      // remove
+    impl Storage<u64, User> for TracingStorageWithGetCount {
+        fn set(&mut self, key: u64, val: User) {
+            self.0.set(key, val);
+        }
+        fn get(&self, key: &u64) -> Option<&User> {
+            GETS_COUNT.with(|c| c.set(c.get() + 1));
+            self.0.get(key)
+        }
+        fn remove(&mut self, key: &u64) -> Option<User> {
+            self.0.remove(key)
+        }
+    }
 
-        let gets = repo.storage.gets();
-        let sets = repo.storage.sets();
-        let removes = repo.storage.removes();
-        assert_eq!(gets, 3, "add-precheck + explicit-get + update-precheck");
-        assert_eq!(sets, 2, "add + update");
-        assert_eq!(removes, 1, "remove once");
+    thread_local! {
+        static GETS_COUNT: std::cell::Cell<usize> = std::cell::Cell::new(0);
     }
 
     #[test]
-    fn dynamic_repo_is_injectable() {
-        let inner = HashMapStorage::<u64, User>::new();
-        let counting = CountingStorage::new(inner);
-        let mut repo = UserRepositoryDynamic::new(Box::new(counting));
+    fn static_repo_is_injectable_with_custom_storage() {
+        let tracing = TracingStorage::default();
+        let mut repo = UserRepositoryStatic::new(tracing);
 
-        assert!(repo.add(u(9, "g@ex", false)));  // set + get(pre-check)
-        let _ = repo.get(9);                     // get
-        let _ = repo.remove(9);                  // remove
+        assert!(repo.add(mk_user(7, "t@ex", true)));
+        assert!(repo.update(mk_user(7, "t2@ex", true)));
+        let _ = repo.remove(7);
 
-        // Витягнути лічильники з Box<dyn Storage> напряму не можемо.
-        // Перевіримо поведінку побічно: CRUD працює, значить інжекція ок.
-        // Для демонстрації підрахунку зробимо ще один цикл з явним типом:
+        // зчитуємо лічильники з полів сховища
+        let TracingStorage { sets, removes, .. } = repo.storage;
+        assert_eq!(sets, 2, "one add + one update");
+        assert_eq!(removes, 1, "one remove");
+    }
 
-        let inner2 = HashMapStorage::<u64, User>::new();
-        let counting2 = CountingStorage::new(inner2);
-        let mut repo2 = UserRepositoryStatic::new(counting2);
+    #[test]
+    fn dynamic_repo_is_injectable_with_custom_storage() {
+        GETS_COUNT.with(|c| c.set(0));
+        let storage: Box<dyn Storage<u64, User>> =
+            Box::new(TracingStorageWithGetCount(TracingStorage::default()));
+        let mut repo = UserRepositoryDynamic::new(storage);
 
-        assert!(repo2.add(u(1, "a@ex", true)));
-        let _ = repo2.get(1);
-        let _ = repo2.remove(1);
+        assert!(repo.add(mk_user(9, "g@ex", false)));
+        let _ = repo.get(9);                          
+        let _ = repo.remove(9);
 
-        assert_eq!(repo2.storage.gets(), 2, "add-precheck + explicit-get");
-        assert_eq!(repo2.storage.sets(), 1, "only add");
-        assert_eq!(repo2.storage.removes(), 1, "one remove");
+        let gets = GETS_COUNT.with(|c| c.get());
+        assert_eq!(gets, 2, "one pre-insert existence check + one explicit get");
     }
 }

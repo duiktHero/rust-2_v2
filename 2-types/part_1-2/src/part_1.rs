@@ -1,117 +1,102 @@
-use std::marker::PhantomData;
+use std::fmt;
 
-pub struct New;
-pub struct Unmoderated;
-pub struct Published;
-pub struct Deleted;
+#[derive(Debug, Clone)]
+pub struct Title(String);
+impl Title {
+    pub fn new(s: impl Into<String>) -> Result<Self, &'static str> {
+        let s = s.into().trim().to_string();
+        if s.is_empty() { return Err("title cannot be empty"); }
+        Ok(Self(s))
+    }
+}
+impl fmt::Display for Title {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result { self.0.fmt(f) }
+}
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Title(pub String);
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Body(pub String);
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Author(pub String);
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone)]
+pub struct Body(String);
+impl Body {
+    pub fn new(s: impl Into<String>) -> Result<Self, &'static str> {
+        let s = s.into();
+        if s.is_empty() { return Err("body cannot be empty"); }
+        Ok(Self(s))
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct Author(String);
+impl Author {
+    pub fn new(s: impl Into<String>) -> Result<Self, &'static str> {
+        let s = s.into().trim().to_string();
+        if s.is_empty() { return Err("author cannot be empty"); }
+        Ok(Self(s))
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
 pub struct UtcMillis(pub i64);
 
 #[derive(Debug, Clone)]
-pub struct Post<State> {
-    pub title: Title,
-    pub body: Body,
-    pub author: Author,
-    pub created_at: UtcMillis,
-    pub updated_at: UtcMillis,
-    _state: PhantomData<State>,
+pub struct NewPost {
+    title: Title,
+    body: Body,
+    author: Author,
+    created_at: UtcMillis,
+}
+#[derive(Debug, Clone)]
+pub struct UnmoderatedPost {
+    title: Title,
+    body: Body,
+    author: Author,
+    created_at: UtcMillis,
+    published_at: UtcMillis,
+}
+#[derive(Debug, Clone)]
+pub struct PublishedPost {
+    title: Title,
+    body: Body,
+    author: Author,
+    created_at: UtcMillis,
+    published_at: UtcMillis,
+    moderated_at: UtcMillis,
 }
 
-impl Post<New> {
+impl NewPost {
     pub fn new(title: Title, body: Body, author: Author, now: UtcMillis) -> Self {
-        Self {
-            title,
-            body,
-            author,
-            created_at: now,
-            updated_at: now,
-            _state: PhantomData,
-        }
+        Self { title, body, author, created_at: now }
     }
-    pub fn publish(self, when: UtcMillis) -> Post<Unmoderated> {
-        Post {
+    pub fn publish(self, at: UtcMillis) -> UnmoderatedPost {
+        UnmoderatedPost {
             title: self.title,
             body: self.body,
             author: self.author,
             created_at: self.created_at,
-            updated_at: when,
-            _state: PhantomData,
+            published_at: at,
         }
     }
 }
 
-impl Post<Unmoderated> {
-    pub fn allow(self, when: UtcMillis) -> Post<Published> {
-        Post {
+impl UnmoderatedPost {
+    pub fn allow(self, at: UtcMillis) -> PublishedPost {
+        PublishedPost {
             title: self.title,
             body: self.body,
             author: self.author,
             created_at: self.created_at,
-            updated_at: when,
-            _state: PhantomData,
-        }
-    }
-    pub fn deny(self, when: UtcMillis) -> Post<Deleted> {
-        Post {
-            title: self.title,
-            body: self.body,
-            author: self.author,
-            created_at: self.created_at,
-            updated_at: when,
-            _state: PhantomData,
+            published_at: self.published_at,
+            moderated_at: at,
         }
     }
 }
 
-impl Post<Published> {
-    pub fn delete(self, when: UtcMillis) -> Post<Deleted> {
-        Post {
-            title: self.title,
-            body: self.body,
-            author: self.author,
-            created_at: self.created_at,
-            updated_at: when,
-            _state: PhantomData,
-        }
-    }
-}
+pub fn demo_transitions() {
+    let title = Title::new("Hello Rust").unwrap();
+    let body = Body::new("Type-state pattern example").unwrap();
+    let author = Author::new("Alice").unwrap();
+    let now = UtcMillis(1_700_000_000_000);
 
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn valid_transitions_compile() {
-        let p = Post::<New>::new(
-            Title("Hello".into()),
-            Body("World".into()),
-            Author("Alice".into()),
-            UtcMillis(1),
-        );
-        let p = p.publish(UtcMillis(2));
-        let _p = p.allow(UtcMillis(3));
-    }
-
-    #[test]
-    fn unmoderated_deny_to_deleted() {
-        let p = Post::<New>::new(
-            Title("T".into()),
-            Body("B".into()),
-            Author("A".into()),
-            UtcMillis(1),
-        );
-        let p = p.publish(UtcMillis(2));
-        let _d = p.deny(UtcMillis(3));
-    }
-
-    // let p = Post::<New>::new(...).delete(UtcMillis(5)); // ❌ не скомпілюється
-    // let d: Post<Deleted> = ...; d.deny(UtcMillis(5));   // ❌ не скомпілюється
+    let newp = NewPost::new(title, body, author, now);
+    let unmod = newp.publish(UtcMillis(1_700_000_500_000));
+    let _published = unmod.allow(UtcMillis(1_700_001_000_000));
+    // let oops = newp.allow(UtcMillis(0));
 }
